@@ -9,8 +9,7 @@
 #include <thread>
 #include <utility>
 
-import Cubiomes;
-import CustomFinders;
+#include "custom_finders.h"
 
 /*
  * This program outputs awesome island seeds

@@ -3,10 +3,11 @@ cmake_minimum_required(VERSION 3.25.1)
 include(FetchContent)
 include(ExternalProject)
 
+SET (CMAKE_CXX_COMPILER "/usr/bin/clang++")
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -fmodules-ts -Werror -Wextra -Wno-attributes]")
-set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -fmodules-ts -Werror -Wextra")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 project(
   nathans_minecraft_seed_finder
@@ -41,7 +42,7 @@ add_library(cubiomes STATIC IMPORTED)
 set_target_properties(cubiomes PROPERTIES IMPORTED_LOCATION "${CUBIOMES_SRC_DIR}/libcubiomes.a")
 
 #find_package(OpenGL)
-find_package(Boost)
+find_package(Boost REQUIRED)
 
 include_directories("${CUBIOMES_SRC_DIR}")
 add_subdirectory(src)

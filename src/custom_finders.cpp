@@ -1,4 +1,4 @@
-module;
+#include "custom_finders.h"
 
 #include <algorithm>
 #include <boost/geometry.hpp>
@@ -10,9 +10,6 @@ module;
 #include <map>
 #include <optional>
 #include <vector>
-
-import Cubiomes;
-export module CustomFinders;
 
 namespace custom_finders {
 
@@ -27,8 +24,8 @@ namespace custom_finders {
  * Note this is extremely expensive and should be done
  * later during seed finding
  */
-export cubiomes::pos find_nearest_land(const cubiomes::generator& g,
-                                       cubiomes::pos pos) {
+cubiomes::pos find_nearest_land(const cubiomes::generator& g,
+                                cubiomes::pos pos) {
     std::map<std::pair<int, int>, bool> visited{};
     std::list<cubiomes::pos> queue;
 
@@ -70,10 +67,9 @@ export cubiomes::pos find_nearest_land(const cubiomes::generator& g,
  * later during seed finding
  */
 
-export bool is_island(
-    const cubiomes::generator& g, int resolution, cubiomes::pos pos,
-    uint64_t minBlocks, uint64_t maxBlocks,
-    std::optional<std::vector<cubiomes::biome>> oceanFilter = std::nullopt) {
+bool is_island(const cubiomes::generator& g, int resolution, cubiomes::pos pos,
+               uint64_t minBlocks, uint64_t maxBlocks,
+               std::optional<std::vector<cubiomes::biome>> oceanFilter) {
     pos.x /= resolution;
     pos.z /= resolution;
     minBlocks /= resolution * resolution;
