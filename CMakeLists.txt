@@ -5,7 +5,7 @@ include(ExternalProject)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -Werror -Wextra")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20 -fmodules-ts -Werror -Wextra -Wno-attributes]")
 set (CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 project(
@@ -39,6 +39,9 @@ FetchContent_MakeAvailable(googletest)
 
 add_library(cubiomes STATIC IMPORTED)
 set_target_properties(cubiomes PROPERTIES IMPORTED_LOCATION "${CUBIOMES_SRC_DIR}/libcubiomes.a")
+
+#find_package(OpenGL)
+find_package(Boost)
 
 include_directories("${CUBIOMES_SRC_DIR}")
 add_subdirectory(src)

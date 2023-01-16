@@ -1,16 +1,16 @@
-#include <atomic>
 #include <array>
+#include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <deque>
 #include <iostream>
 #include <map>
 #include <random>
-#include <stdio.h>
 #include <thread>
 #include <utility>
 
-#include "finders.h"
-#include "custom_finders.h"
+import Cubiomes;
+import CustomFinders;
 
 /*
  * This program outputs awesome island seeds
@@ -19,123 +19,102 @@
  * and there is at least one village island nearby
  */
 
-std::atomic<uint64_t> numFinds{0};
+std::atomic<uint64_t> num_finds{0};
 const auto startTime = std::chrono::steady_clock::now();
 
-void search()
-{
-    const auto version = MC_NEWEST;
-    const int64_t minIslandSizeBlocks = 500;
-    const int64_t maxIslandSizeBlocks = 2000000;
-    Generator g;
-
-    // Allocate and initialize a stack of biome layers that reflects the biome
-    // generation of Minecraft
-    setupGenerator(&g, version, 0);
+void search() {
+    const int64_t min_island_size_blocks = 50000;
+    const int64_t max_island_size_blocks = 500000;
 
     std::random_device rd;
-    std::mt19937_64 eng(rd()); 
+    std::mt19937_64 eng(rd());
     std::uniform_int_distribution<unsigned long long> distr;
 
-    while(true)
-    {
+    while (true) {
+        // int64_t seed = -3874624793136709106;
         int64_t seed = distr(eng);
-        //int64_t seed = -3874624793136709106;
 
-        //std::cout << "checking " << seed << std::endl;
+        cubiomes::generator g{cubiomes::mc_version::MC_NEWEST, seed};
 
-        // Go through the layers in the layer stack and initialize the seed
-        // dependent aspects of the generator.
-        applySeed(&g, DIM_OVERWORLD, seed);
+        // std::cout << "checking " << seed << std::endl;
 
-#if 0
-        //quick checks for ocean nearby, creates false negatives but speeds things up a lot
+        cubiomes::pos spawn_pos = cubiomes::get_spawn(g);
 
-        bool foundOcean = false;
+        auto spawn_biome =
+            cubiomes::get_biome(g, 1, spawn_pos.x, 63, spawn_pos.z);
 
-        for(int i = 0; i < 160; i += 16)
-        {
-            auto pos = Pos{0, i};
+        if (!(spawn_biome == cubiomes::biome::snowy_slopes ||
+              spawn_biome == cubiomes::biome::jagged_peaks ||
+              spawn_biome == cubiomes::biome::frozen_peaks ||
+              spawn_biome == cubiomes::biome::stony_peaks ||
+              spawn_biome == cubiomes::biome::mountain_edge ||
+              spawn_biome == cubiomes::biome::mountains ||
+              spawn_biome == cubiomes::biome::mushroom_fields ||
+              spawn_biome == cubiomes::biome::mushroom_field_shore)) {
+            continue;
+        }
 
-            if (isOceanic(getBiomeAt(&g, 1, pos.x, 0, pos.z)))
-            {
-                foundOcean = true;
+        if (!custom_finders::is_island(
+                g, 4, spawn_pos, min_island_size_blocks, max_island_size_blocks,
+                std::vector<cubiomes::biome>{
+                    cubiomes::biome::ocean, cubiomes::biome::deep_ocean,
+                    cubiomes::biome::warm_ocean,
+                    cubiomes::biome::lukewarm_ocean,
+                    cubiomes::biome::deep_warm_ocean,
+                    cubiomes::biome::deep_lukewarm_ocean})) {
+            continue;
+        }
+
+        auto found_villages = cubiomes::get_nearby_villages(g, spawn_pos, 500);
+
+        if (found_villages.empty()) {
+            continue;
+        }
+
+        bool found_island_village = false;
+
+        for (auto& island_pos : found_villages) {
+            if (custom_finders::is_island(g, 4, island_pos,
+                                          min_island_size_blocks,
+                                          max_island_size_blocks)) {
+                // std::cout << seed << " village island at " << island_pos.x <<
+                // "x" << island_pos.z << std::endl;
+                found_island_village = true;
                 break;
             }
         }
 
-        if(!foundOcean)
-        {
-            continue;
-        }
-#endif
-
-
-        StrongholdIter sh;
-        
-        bool foundStronghold = true;
-        bool foundMushroomStronghold = false;
-        int shIt = 0;
-        Pos strongholdPos;
-
-        initFirstStronghold(&sh, version, seed);
-
-        while(foundStronghold && shIt < 3)
-        {
-            auto pos = sh.pos;
-            auto surface = getBiomeAt(&g, 1, pos.x, 63, pos.z);
-            auto deep = getBiomeAt(&g, 1, pos.x, -56, pos.z);
-
-            if (deep == lush_caves && (surface == mushroom_fields || surface == mushroom_field_shore))
-            {
-                foundMushroomStronghold = true;
-                strongholdPos = pos;
-                break;
-            }
-
-            foundStronghold = nextStronghold(&sh, &g);
-            shIt++;
-        }
-
-        if (!foundMushroomStronghold)
-        {
+        if (!found_island_village) {
             continue;
         }
 
-        std::cout << "found stronghold-only seed: " << seed << std::endl;
+        std::cout << "found island seed " << seed << std::endl;
 
-    	Pos spawnPos = getSpawn(&g);
+        bool found_mushroom_stronghold = false;
+        cubiomes::pos stronghold_pos;
+        auto strongholds = cubiomes::get_first_n_strongholds(g, 3);
 
-        if(!isIsland(&g, 4, spawnPos, minIslandSizeBlocks, maxIslandSizeBlocks))
-        {
-            continue;
-        }
-    
-        auto foundVillages = getVillagesInRange(&g, strongholdPos, seed, 500);
+        for (auto pos : strongholds) {
+            auto surface = cubiomes::get_biome(g, 1, pos.x, 63, pos.z);
+            auto deep = cubiomes::get_biome(g, 1, pos.x, -56, pos.z);
 
-        if(foundVillages.empty())
-        {
-            continue;
-        }
-
-        bool foundIslandVillage = false;
-
-        for(auto& islandPos : foundVillages)
-        {
-            if(isIsland(&g, 4, islandPos, minIslandSizeBlocks, maxIslandSizeBlocks))
-            {
-                std::cout << seed << " village island at " << islandPos.x << "x" << islandPos.z << std::endl;
-                foundIslandVillage = true;
+            if (deep == cubiomes::biome::lush_caves &&
+                (surface == cubiomes::biome::mushroom_fields ||
+                 surface == cubiomes::biome::mushroom_field_shore)) {
+                found_mushroom_stronghold = true;
+                stronghold_pos = pos;
                 break;
             }
         }
 
-        if (!foundIslandVillage)
-        {
+        if (!found_mushroom_stronghold) {
             continue;
         }
 
-        std::cout << seed << " mushroom stronghold at " << strongholdPos.x << "x" << strongholdPos.z << std::endl;
+        std::cout << "found stronghold seed: " << seed << std::endl;
+
+        std::cout << seed << " mushroom stronghold at " << stronghold_pos.x
+                  << "x" << stronghold_pos.z << std::endl;
 
 #if 0
 
@@ -150,7 +129,7 @@ void search()
         // 1:16, a.k.a. horizontal chunk scaling
         r.scale = 1;
         // Define the position and size for a horizontal area:
-        r.x = strongholdPos.x - rangeToSearch, r.z = strongholdPos.z - rangeToSearch;   // position (x,z)
+        r.x = stronghold_pos.x - rangeToSearch, r.z = stronghold_pos.z - rangeToSearch;   // position (x,z)
         r.sx = edgeLen, r.sz = edgeLen; // size (width,height)
         // Set the vertical range as a plane near sea level at scale 1:4.
         r.y = 15, r.sy = 1;
@@ -169,30 +148,28 @@ void search()
 #endif
 
         std::cout << "found ideal seed: " << seed << std::endl;
-        numFinds++;
-        std::cout << "mean time between finds = " << std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - startTime).count() / numFinds << std::endl;
+        num_finds++;
+        std::cout << "mean time between finds = "
+                  << std::chrono::duration_cast<std::chrono::seconds>(
+                         std::chrono::steady_clock::now() - startTime)
+                             .count() /
+                         num_finds
+                  << std::endl;
     }
 }
 
-int main()
-{
+int main() {
     static constexpr int num_threads = 8;
     std::array<std::thread, num_threads> threads;
 
-    // First initialize the global biome table 'int biomes[256]'. This sets up
-    // properties such as the category and temperature of each biome.
-    initBiomes();
-
-    for(auto& t : threads)
-    {
+    for (auto& t : threads) {
         t = std::thread{search};
     }
 
-    for(auto& t : threads)
-    {
+    for (auto& t : threads) {
         t.join();
     }
-    
+
     return 0;
 }
 

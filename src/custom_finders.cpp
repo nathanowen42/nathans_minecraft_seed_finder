@@ -1,10 +1,20 @@
+module;
+
 #include <algorithm>
-#include <deque>
-#include <vector>
+#include <boost/geometry.hpp>
+#include <boost/geometry/geometries/geometries.hpp>
+#include <boost/geometry/geometries/point_xy.hpp>
+#include <cstdint>
+#include <iostream>
+#include <list>
 #include <map>
+#include <optional>
+#include <vector>
 
-#include "finders.h"
+import Cubiomes;
+export module CustomFinders;
 
+namespace custom_finders {
 
 /*
  * Finds the closest land to the specified location
@@ -15,38 +25,35 @@
  * I am not sure yet what layer this needs to be done at.
  *
  * Note this is extremely expensive and should be done
- * later during seed finding 
+ * later during seed finding
  */
-Pos findClosestLand(const Generator *g, Pos pos)
-{
-    std::map<std::pair<int,int>, bool> visited{};
-    std::deque<Pos> queue;
+export cubiomes::pos find_nearest_land(const cubiomes::generator& g,
+                                       cubiomes::pos pos) {
+    std::map<std::pair<int, int>, bool> visited{};
+    std::list<cubiomes::pos> queue;
 
     queue.emplace_back(pos);
 
-    while (true)
-    {
+    while (true) {
         auto p = queue.front();
         queue.pop_front();
 
-        auto& vis = visited[{p.x,p.z}];
+        auto& vis = visited[{p.x, p.z}];
 
-        if(vis)
-        {
+        if (vis) {
             continue;
         }
 
         vis = true;
 
-        if(!isOceanic(getBiomeAt(g, 1, p.x, 0, p.z)))
-        {
+        if (!cubiomes::is_oceanic(cubiomes::get_biome(g, 1, p.x, 0, p.z))) {
             return p;
         }
 
-        queue.emplace_back(Pos{p.x + 1, p.z});
-        queue.emplace_back(Pos{p.x - 1, p.z});
-        queue.emplace_back(Pos{p.x, p.z + 1});
-        queue.emplace_back(Pos{p.x, p.z - 1});
+        queue.emplace_back(cubiomes::pos{p.x + 1, p.z});
+        queue.emplace_back(cubiomes::pos{p.x - 1, p.z});
+        queue.emplace_back(cubiomes::pos{p.x, p.z + 1});
+        queue.emplace_back(cubiomes::pos{p.x, p.z - 1});
     }
 }
 
@@ -60,88 +67,115 @@ Pos findClosestLand(const Generator *g, Pos pos)
  * I am not sure yet what layer this needs to be done at.
  *
  * Note this is extremely expensive and should be done
- * later during seed finding 
+ * later during seed finding
  */
 
-bool isIsland(const Generator *g, int resolution, Pos pos, uint64_t minBlocks, uint64_t maxBlocks)
-{
+export bool is_island(
+    const cubiomes::generator& g, int resolution, cubiomes::pos pos,
+    uint64_t minBlocks, uint64_t maxBlocks,
+    std::optional<std::vector<cubiomes::biome>> oceanFilter = std::nullopt) {
     pos.x /= resolution;
     pos.z /= resolution;
-    minBlocks /= resolution;
-    minBlocks /= resolution;
-    maxBlocks /= resolution;
-    maxBlocks /= resolution;
+    minBlocks /= resolution * resolution;
+    maxBlocks /= resolution * resolution;
+    auto requiredOceanBlocks = maxBlocks * maxBlocks;
 
-    if(isOceanic(getBiomeAt(g, resolution, pos.x, 0, pos.z)))
-    {
+    if (cubiomes::is_oceanic(
+            cubiomes::get_biome(g, resolution, pos.x, 0, pos.z))) {
         return false;
     }
 
-    std::map<std::pair<int,int>, bool> visited{};
-    std::deque<Pos> queue;
+    std::map<std::pair<int, int>, bool> visited{};
+    std::list<cubiomes::pos> landQueue;
+    std::list<cubiomes::pos> queue;
     uint64_t blocksChecked = 0;
 
-    queue.emplace_back(pos);
+    landQueue.emplace_back(pos);
 
-    while (!queue.empty() && blocksChecked < maxBlocks)
-    {
-        auto p = queue.front();
-        queue.pop_front();
+    while (blocksChecked < maxBlocks && !landQueue.empty()) {
+        queue.splice(queue.end(), landQueue);
+        uint64_t oceanBlocksChecked = 0;
+        std::list<cubiomes::pos> oceanEdge;
 
-        auto& vis = visited[{p.x,p.z}];
+        while (!queue.empty() && blocksChecked < maxBlocks) {
+            auto p = queue.front();
+            queue.pop_front();
 
-        if(vis)
-        {
-            continue;
-        }
+            auto& vis = visited[{p.x, p.z}];
 
-        vis = true;
-
-        if(isOceanic(getBiomeAt(g, resolution, p.x, 0, p.z)))
-        {
-            continue;
-        }
-
-        blocksChecked++;
-
-        queue.emplace_back(Pos{p.x + 1, p.z});
-        queue.emplace_back(Pos{p.x - 1, p.z});
-        queue.emplace_back(Pos{p.x, p.z + 1});
-        queue.emplace_back(Pos{p.x, p.z - 1});
-    }
-
-    return blocksChecked > minBlocks && blocksChecked < maxBlocks;
-}
-
-std::vector<Pos> getVillagesInRange(Generator *g, Pos pos, int64_t seed, uint64_t range)
-{
-    std::vector<Pos> foundList;
-    StructureConfig sc;
-    getStructureConfig(Village, g->mc, &sc);
-    auto regionSizeBlocks = sc.regionSize * 16;
-    int64_t regionRange = std::max(range / regionSizeBlocks, uint64_t(1));
-    auto regionPosX = pos.x / regionSizeBlocks;
-    auto regionPosZ = pos.z / regionSizeBlocks;
-
-    for(int regionX = regionPosX - regionRange; regionX <= regionRange; regionX++)
-    {
-        for(int regionZ = regionPosZ - regionRange; regionZ <= regionRange; regionZ++)
-        {
-            Pos structPos;
-            
-            if(!getStructurePos(Village, g->mc, seed, regionX, regionZ, &structPos))
-            {
+            if (vis) {
                 continue;
             }
 
-            if(isViableStructurePos(Village, g, structPos.x, structPos.z, 0))
-            {
-                foundList.emplace_back(structPos);
+            vis = true;
+
+            auto biome = cubiomes::get_biome(g, resolution, p.x, 0, p.z);
+
+            if (cubiomes::is_oceanic(biome)) {
+                if (oceanFilter.has_value()) {
+                    auto& list = oceanFilter.value();
+                    if (std::find(list.begin(), list.end(), biome) ==
+                        list.end()) {
+                        return false;
+                    }
+                }
+                oceanEdge.emplace_back(p.x, p.z);
+                continue;
             }
+
+            blocksChecked++;
+
+            queue.emplace_back(cubiomes::pos{p.x + 1, p.z});
+            queue.emplace_back(cubiomes::pos{p.x - 1, p.z});
+            queue.emplace_back(cubiomes::pos{p.x, p.z + 1});
+            queue.emplace_back(cubiomes::pos{p.x, p.z - 1});
+        }
+
+        if (blocksChecked <= minBlocks || blocksChecked >= maxBlocks) {
+            std::cout << "too many non-ocean blocks" << std::endl;
+            return false;
+        }
+
+        queue.splice(queue.end(), oceanEdge);
+
+        while (!queue.empty() && oceanBlocksChecked < requiredOceanBlocks) {
+            auto p = queue.front();
+            queue.pop_front();
+
+            auto& vis = visited[{p.x, p.z}];
+
+            if (vis) {
+                continue;
+            }
+
+            vis = true;
+            auto biome = cubiomes::get_biome(g, resolution, p.x, 0, p.z);
+
+            if (cubiomes::is_oceanic(biome)) {
+                if (oceanFilter.has_value()) {
+                    auto& list = oceanFilter.value();
+                    if (std::find(list.begin(), list.end(), biome) ==
+                        list.end()) {
+                        return false;
+                    }
+                }
+
+                queue.emplace_back(cubiomes::pos{p.x + 1, p.z});
+                queue.emplace_back(cubiomes::pos{p.x - 1, p.z});
+                queue.emplace_back(cubiomes::pos{p.x, p.z + 1});
+                queue.emplace_back(cubiomes::pos{p.x, p.z - 1});
+                oceanBlocksChecked++;
+
+                continue;
+            } else {
+                landQueue.emplace_back(cubiomes::pos{p.x, p.z});
+            }
+
+            blocksChecked++;
         }
     }
 
-    //free(cache);
-    return foundList;
+    return true;
 }
 
+}  // namespace custom_finders
