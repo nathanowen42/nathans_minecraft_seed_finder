@@ -22,6 +22,8 @@ std::atomic<uint64_t> num_finds{0};
 const auto startTime = std::chrono::steady_clock::now();
 
 void search() {
+    const int64_t island_resolution = 16;
+    const int64_t min_island_dist_to_land = 100;
     const int64_t min_island_size_blocks = 50000;
     const int64_t max_island_size_blocks = 500000;
 
@@ -30,7 +32,7 @@ void search() {
     std::uniform_int_distribution<unsigned long long> distr;
 
     while (true) {
-        // int64_t seed = -3874624793136709106;
+        // int64_t seed = -2330943080261014108;
         int64_t seed = distr(eng);
 
         cubiomes::generator g{cubiomes::mc_version::MC_NEWEST, seed};
@@ -54,7 +56,8 @@ void search() {
         }
 
         if (!custom_finders::is_island(
-                g, 4, spawn_pos, min_island_size_blocks, max_island_size_blocks,
+                g, island_resolution, spawn_pos, min_island_dist_to_land,
+                min_island_size_blocks, max_island_size_blocks,
                 std::vector<cubiomes::biome>{
                     cubiomes::biome::ocean, cubiomes::biome::deep_ocean,
                     cubiomes::biome::warm_ocean,
@@ -63,6 +66,8 @@ void search() {
                     cubiomes::biome::deep_lukewarm_ocean})) {
             continue;
         }
+
+        std::cout << "found island seed " << seed << std::endl;
 
         auto found_villages = cubiomes::get_nearby_villages(g, spawn_pos, 500);
 
@@ -73,9 +78,9 @@ void search() {
         bool found_island_village = false;
 
         for (auto& island_pos : found_villages) {
-            if (custom_finders::is_island(g, 4, island_pos,
-                                          min_island_size_blocks,
-                                          max_island_size_blocks)) {
+            if (custom_finders::is_island(
+                    g, island_resolution, island_pos, min_island_dist_to_land,
+                    min_island_size_blocks, max_island_size_blocks)) {
                 // std::cout << seed << " village island at " << island_pos.x <<
                 // "x" << island_pos.z << std::endl;
                 found_island_village = true;
@@ -86,8 +91,6 @@ void search() {
         if (!found_island_village) {
             continue;
         }
-
-        std::cout << "found island seed " << seed << std::endl;
 
         bool found_mushroom_stronghold = false;
         cubiomes::pos stronghold_pos;

@@ -42,7 +42,7 @@ cubiomes::pos find_nearest_land(const cubiomes::generator& g,
 
 bool is_island(
     const cubiomes::generator& g, int resolution, cubiomes::pos pos,
-    uint64_t minBlocks, uint64_t maxBlocks,
+    uint32_t minDistFromLand, uint32_t minBlocks, uint32_t maxBlocks,
     std::optional<std::vector<cubiomes::biome>> oceanFilter = std::nullopt);
 
 }  // namespace custom_finders
